@@ -27,6 +27,28 @@ type Message struct {
 	Payload []byte
 }
 
+// Create a REQUEST message
+func NewRequest(index, begin, length int) *Message {
+	payload := make([]byte, 12)
+	binary.BigEndian.PutUint32(payload, uint32(index))
+	binary.BigEndian.PutUint32(payload[4:8], uint32(begin))
+	binary.BigEndian.PutUint32(payload[8:], uint32(length))
+	return &Message{
+		ID:      MsgRequest,
+		Payload: payload,
+	}
+}
+
+// Create a HAVE message
+func NewHave(index int) *Message {
+	payload := make([]byte, 4)
+	binary.BigEndian.PutUint32(payload, uint32(index))
+	return &Message{
+		ID:      MsgHave,
+		Payload: payload,
+	}
+}
+
 // serialize the message into a byte array
 func (m *Message) Serialize() []byte {
 	if m == nil {
