@@ -2,8 +2,10 @@ package connection
 
 import (
 	"log"
+	"time"
 
 	"github.com/lorenzoc25/bittorrent-go/client"
+	"github.com/lorenzoc25/bittorrent-go/message"
 	"github.com/lorenzoc25/bittorrent-go/peer"
 )
 
@@ -33,6 +35,15 @@ type pieceResult struct {
 	data  []byte
 }
 
+type pieceProgress struct {
+	index      int
+	client     *client.Client
+	buf        []byte
+	downloaded int
+	requested  int
+	backlog    int
+}
+
 func (t *Torrent) getPieceBound(index int) (begin, end int) {
 	begin = index * t.PieceLength
 	end = begin + t.PieceLength
@@ -44,6 +55,36 @@ func (t *Torrent) getPieceBound(index int) (begin, end int) {
 func (t *Torrent) getPieceSize(index int) (size int) {
 	begin, end := t.getPieceBound(index)
 	return end - begin
+}
+
+func (state *pieceProgress) readMessgae() error {
+	msg, err := state.client.Read()
+	if err != nil {
+		return err
+	}
+	if msg == nil {
+		return nil
+	}
+	switch msg.ID {
+	case message.MsgChoke:
+		state.client.Choked = true
+	case message.MsgUnchoke:
+		state.client.Choked = false
+	case message.MsgHave:
+		index, err := message.ParseHave(msg)
+		if err != nil {
+			return err
+		}
+		state.client.Bitfield.SetPiece(index)
+	case message.MsgPiece:
+		n, err := message.ParsePiece(state.index, state.buf, msg)
+		if err != nil {
+			return err
+		}
+		state.downloaded += n
+		state.backlog--
+	}
+	return nil
 }
 
 func (t *Torrent) Download() ([]byte, error) {
@@ -58,6 +99,48 @@ func (t *Torrent) Download() ([]byte, error) {
 	for _, peer := range t.Peers {
 		go t.startDownloadWorker(peer, workQueue, resultQueue)
 	}
+	// collect all the results
+	buf := make([]byte, t.Length)
+	donePieces := 0
+	for donePieces < len(t.PieceHashes) {
+		result := <-resultQueue
+		begin, end := t.getPieceBound(result.index)
+		copy(buf[begin:end], result.data)
+		donePieces++
+	}
+	close(workQueue)
+	return buf, nil
+}
+
+// start a worker to download a piece
+func attemptDownloadPiece(c *client.Client, pw *pieceWork) ([]byte, error) {
+	state := pieceProgress{
+		index:  pw.index,
+		client: c,
+		buf:    make([]byte, pw.length),
+	}
+	c.Conn.SetDeadline(time.Now().Add(30 * time.Second))
+	defer c.Conn.SetDeadline(time.Time{})
+
+	for state.downloaded < pw.length {
+		// if unchocked, send requsts until we have enough unfullfilled requests
+		if !state.client.Choked {
+			for state.backlog < MaxBacklog && state.requested < pw.length {
+				blockSize := MaxBlockSize
+				if pw.length-state.requested < MaxBlockSize {
+					blockSize = pw.length - state.requested
+				}
+				err := c.SendRequest(pw.index, state.requested, blockSize)
+				if err != nil {
+					return nil, err
+				}
+				state.backlog++
+				state.requested += blockSize
+			}
+		}
+
+	}
+	return state.buf, nil
 }
 
 // start a worker to download a piece
@@ -67,5 +150,21 @@ func (t *Torrent) startDownloadWorker(peer peer.Peer, workQueue chan *pieceWork,
 		log.Printf("Counld not handshake with peer %s: %s", peer.String(), peer.IP)
 		return
 	}
+	log.Printf("Compelted handshake with peer %s", peer.IP)
 	defer c.Conn.Close()
+
+	// choke the connectino and show interest
+	c.SendChoke()
+	c.SendInterested()
+
+	for piece := range workQueue {
+		if !c.Bitfield.HasPiece(piece.index) {
+			// put the piece back to workQueue
+			workQueue <- piece
+			continue
+		}
+		// start downloading the piece
+
+	}
+
 }

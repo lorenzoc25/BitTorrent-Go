@@ -3,6 +3,7 @@ package message
 // send and receive messages once completed the handshake
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
@@ -49,7 +50,42 @@ func NewHave(index int) *Message {
 	}
 }
 
+// parse a PIECE message
+func ParsePiece(index int, buf []byte, msg *Message) (int, error) {
+	if msg == nil || msg.ID != MsgPiece {
+		return 0, fmt.Errorf("expected PIECE message but got %v", msg.ID)
+	}
+	if len(msg.Payload) < 8 {
+		return 0, fmt.Errorf("expected at least 8 bytes payload but got %v", len(msg.Payload))
+	}
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Payload[0:4]))
+	if parsedIndex != index {
+		return 0, fmt.Errorf("expected index to be %d but got %d", index, parsedIndex)
+	}
+	begin := int(binary.BigEndian.Uint32(msg.Payload[4:8]))
+	if begin >= len(buf) {
+		return 0, fmt.Errorf("begin offset too high (%d >= %d)", begin, len(buf))
+	}
+	data := msg.Payload[8:]
+	if begin+len(data) > len(buf) {
+		return 0, fmt.Errorf("begin offset plus data length too high (%d + %d > %d)", begin, len(data), len(buf))
+	}
+	return len(data), nil
+}
+
+// parse a HAVE message
+func ParseHave(msg *Message) (int, error) {
+	if msg == nil || msg.ID != MsgHave {
+		return 0, fmt.Errorf("expected HAVE message but got %v", msg.ID)
+	}
+	if len(msg.Payload) != 4 {
+		return 0, fmt.Errorf("expected 4 bytes payload but got %v", len(msg.Payload))
+	}
+	return int(binary.BigEndian.Uint32(msg.Payload)), nil
+}
+
 // serialize the message into a byte array
+// length prefix | id | payload
 func (m *Message) Serialize() []byte {
 	if m == nil {
 		return make([]byte, 4)

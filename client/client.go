@@ -85,8 +85,36 @@ func (c *Client) Read() (*message.Message, error) {
 }
 
 // send request message to peer
-func (c *Client) Request(index, begin, length int) error {
+func (c *Client) SendRequest(index, begin, length int) error {
 	req := message.NewRequest(index, begin, length)
 	_, err := c.Conn.Write(req.Serialize())
+	return err
+}
+
+// make a message to connectino to choke the connection
+func (c *Client) SendChoke() error {
+	msg := message.Message{ID: message.MsgChoke}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+// make a message to connectino to unchoke the connection
+func (c *Client) SendUnchoke() error {
+	msg := message.Message{ID: message.MsgUnchoke}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+// similar to above but for interested
+func (c *Client) SendInterested() error {
+	msg := message.Message{ID: message.MsgInterested}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+// similar to above but for not interested
+func (c *Client) SendNotInterested() error {
+	msg := message.Message{ID: message.MsgNotInterested}
+	_, err := c.Conn.Write(msg.Serialize())
 	return err
 }
