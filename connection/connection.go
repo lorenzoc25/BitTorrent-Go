@@ -164,6 +164,14 @@ func (t *Torrent) startDownloadWorker(peer peer.Peer, workQueue chan *pieceWork,
 			continue
 		}
 		// start downloading the piece
+		buf, err := attemptDownloadPiece(c, piece)
+		if err != nil {
+			// attemp unsuccessful, put the piece back to workQueue
+			workQueue <- piece
+			return
+		}
+		c.SendHave(piece.index)
+		resultQueue <- &pieceResult{piece.index, buf}
 
 	}
 

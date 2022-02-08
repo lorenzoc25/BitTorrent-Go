@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
@@ -115,6 +116,15 @@ func (c *Client) SendInterested() error {
 // similar to above but for not interested
 func (c *Client) SendNotInterested() error {
 	msg := message.Message{ID: message.MsgNotInterested}
+	_, err := c.Conn.Write(msg.Serialize())
+	return err
+}
+
+// sendHave message to peer
+func (c *Client) SendHave(index int) error {
+	payload := make([]byte, 4)
+	binary.BigEndian.PutUint32(payload, uint32(index))
+	msg := message.Message{ID: message.MsgHave, Payload: payload}
 	_, err := c.Conn.Write(msg.Serialize())
 	return err
 }
