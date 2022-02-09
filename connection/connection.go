@@ -1,6 +1,9 @@
 package connection
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"fmt"
 	"log"
 	"time"
 
@@ -143,6 +146,14 @@ func attemptDownloadPiece(c *client.Client, pw *pieceWork) ([]byte, error) {
 	return state.buf, nil
 }
 
+func checkIntegrity(pw *pieceWork, buf []byte) error {
+	hash := sha1.Sum(buf)
+	if !bytes.Equal(hash[:], pw.hash[:]) {
+		return fmt.Errorf("piece %d hash mismatch", pw.index)
+	}
+	return nil
+}
+
 // start a worker to download a piece
 func (t *Torrent) startDownloadWorker(peer peer.Peer, workQueue chan *pieceWork, resultQueue chan *pieceResult) {
 	c, err := client.New(peer, t.PeerID, t.InfoHash)
@@ -170,9 +181,18 @@ func (t *Torrent) startDownloadWorker(peer peer.Peer, workQueue chan *pieceWork,
 			workQueue <- piece
 			return
 		}
+
+		err = checkIntegrity(piece, buf)
+		if err != nil {
+			// piece failed integrity check, put the piece back to workQueue
+			log.Printf("Piece %d failed integrity check", piece.index)
+			workQueue <- piece
+			return
+		}
+
+		// after the piece is downloaded, update other peers that we have the piece
 		c.SendHave(piece.index)
 		resultQueue <- &pieceResult{piece.index, buf}
-
 	}
 
 }
