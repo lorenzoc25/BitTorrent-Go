@@ -2,9 +2,9 @@ package torrentfile
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha1"
 	"fmt"
-	"math/rand"
 	"os"
 
 	"github.com/jackpal/bencode-go"
@@ -23,15 +23,15 @@ type TorrentFile struct {
 }
 
 type bencodeInfo struct {
-	Pieces       string
-	PiecesLength int
-	Length       int
-	Name         string
+	Pieces       string `bencode:"pieces"`
+	PiecesLength int    `bencode:"piece length"`
+	Length       int    `bencode:"length"`
+	Name         string `bencode:"name"`
 }
 
 type bencodeTorrent struct {
-	Announce string
-	Info     bencodeInfo
+	Announce string      `bencode:"announce"`
+	Info     bencodeInfo `bencode:"info"`
 }
 
 // open and parse a torrent file

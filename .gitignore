@@ -17,3 +17,5 @@
 
 # torrent files for testing purpose
 *.torrent
+*.iso
+

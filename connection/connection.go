@@ -161,10 +161,10 @@ func checkIntegrity(pw *pieceWork, buf []byte) error {
 func (t *Torrent) startDownloadWorker(peer peer.Peer, workQueue chan *pieceWork, resultQueue chan *pieceResult) {
 	c, err := client.New(peer, t.PeerID, t.InfoHash)
 	if err != nil {
-		log.Printf("Counld not handshake with peer %s: %s", peer.String(), peer.IP)
+		log.Printf("Could not handshake with peer %s: %s", peer.String(), peer.IP)
 		return
 	}
-	log.Printf("Compelted handshake with peer %s", peer.IP)
+	log.Printf("Completed handshake with peer %s", peer.IP)
 	defer c.Conn.Close()
 
 	// choke the connectino and show interest
