@@ -3,6 +3,7 @@ package peer
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 )
@@ -15,6 +16,7 @@ type Peer struct {
 // Parses peer ip addresses and ports from a buffer
 func Unmarshal(peersBin []byte) ([]Peer, error) {
 	const peerSize = 6
+	log.Printf("Unmarshal: %d bytes, peerSize is %d", len(peersBin), peerSize)
 	numPeers := len(peersBin) / peerSize
 	if len(peersBin)%numPeers != 0 {
 		err := fmt.Errorf("RECEIVED MALFORMED PEERS")

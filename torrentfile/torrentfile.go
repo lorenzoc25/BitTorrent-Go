@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"fmt"
-	"io"
+	"math/rand"
+	"os"
 
 	"github.com/jackpal/bencode-go"
+	"github.com/lorenzoc25/bittorrent-go/connection"
 )
+
+const port = 5050
 
 type TorrentFile struct {
 	Announce    string
@@ -31,13 +35,54 @@ type bencodeTorrent struct {
 }
 
 // open and parse a torrent file
-func Open(r io.Reader) (*bencodeTorrent, error) {
-	bct := bencodeTorrent{}
-	err := bencode.Unmarshal(r, &bct)
+func Open(path string) (TorrentFile, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return TorrentFile{}, err
 	}
-	return &bct, nil
+	defer file.Close()
+
+	bto := bencodeTorrent{}
+	err = bencode.Unmarshal(file, &bto)
+	if err != nil {
+		return TorrentFile{}, err
+	}
+	return bto.toTorrentFile()
+}
+
+func (tf *TorrentFile) DownloadToFile(outPath string) error {
+	peerId := [20]byte{}
+	_, err := rand.Read(peerId[:])
+	if err != nil {
+		return err
+	}
+	peers, err := tf.requestPeers(peerId, port)
+	if err != nil {
+		return err
+	}
+	torrent := connection.Torrent{
+		Peers:       peers,
+		PeerID:      peerId,
+		InfoHash:    tf.InfoHash,
+		PieceHashes: tf.PieceHashes,
+		PieceLength: tf.PieceLength,
+		Length:      tf.Length,
+		Name:        tf.Name,
+	}
+	buff, err := torrent.Download()
+	if err != nil {
+		return err
+	}
+	outFile, err := os.Create(outPath)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+	_, err = outFile.Write(buff)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // hash the info
@@ -55,7 +100,7 @@ func (bi *bencodeInfo) splitPieceHashes() ([][20]byte, error) {
 	hashLen := 20
 	buf := []byte(bi.Pieces)
 	if len(buf)%hashLen != 0 {
-		err := fmt.Errorf("Malformed piecies of length %d", len(buf))
+		err := fmt.Errorf("malformed piecies of length %d", len(buf))
 		return nil, err
 	}
 	numHashes := len(buf) % hashLen

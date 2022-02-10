@@ -141,7 +141,10 @@ func attemptDownloadPiece(c *client.Client, pw *pieceWork) ([]byte, error) {
 				state.requested += blockSize
 			}
 		}
-
+		err := state.readMessgae()
+		if err != nil {
+			return nil, err
+		}
 	}
 	return state.buf, nil
 }
@@ -189,10 +192,8 @@ func (t *Torrent) startDownloadWorker(peer peer.Peer, workQueue chan *pieceWork,
 			workQueue <- piece
 			return
 		}
-
 		// after the piece is downloaded, update other peers that we have the piece
 		c.SendHave(piece.index)
 		resultQueue <- &pieceResult{piece.index, buf}
 	}
-
 }
