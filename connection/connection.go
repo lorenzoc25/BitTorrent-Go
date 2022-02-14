@@ -195,5 +195,6 @@ func (t *Torrent) startDownloadWorker(peer peer.Peer, workQueue chan *pieceWork,
 		// after the piece is downloaded, update other peers that we have the piece
 		c.SendHave(piece.index)
 		resultQueue <- &pieceResult{piece.index, buf}
+		log.Printf("Complete downloading piece %d", piece.index)
 	}
 }
